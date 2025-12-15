@@ -109,7 +109,7 @@ impl Unfold {
         import_path_v
     }
 
-    fn unfold_rec(&mut self, file_path: PathBuf) -> Result<(String, String), std::io::Error> {
+    fn unfold_rec(&mut self, file_path: &PathBuf) -> Result<(String, String), std::io::Error> {
         let content = read_to_string(file_path.to_str().unwrap())?;
         let mut res = String::new();
         let mut res_inner_directive = String::new();
@@ -204,7 +204,7 @@ impl Unfold {
                 }
                 self.unfolded_path.insert(path.to_str().unwrap().to_string());
 
-                let (child_res, _) = self.unfold_rec(path)?;
+                let (child_res, _) = self.unfold_rec(&path)?;
                 res += &child_res;
                 res += "\n";
             }
@@ -249,7 +249,7 @@ impl Unfold {
         Ok(res_use)
     }
 
-    fn unfold(&mut self, file_path: PathBuf) -> Result<String, std::io::Error> {
+    fn unfold(&mut self, file_path: &PathBuf) -> Result<String, std::io::Error> {
         let (res, res_inner_directive) = self.unfold_rec(file_path)?;
         let res_use = self.unfold_use()?;
         Ok(res_inner_directive + &res_use + &res)
@@ -259,7 +259,8 @@ impl Unfold {
 
 fn main() {
     let mut unfold = Unfold::new();
-    let res = unfold.unfold(unfold.file_path.clone());
+    let file_path = unfold.file_path.clone();
+    let res = unfold.unfold(&file_path);
 
     match res {
         Ok(val) => {
