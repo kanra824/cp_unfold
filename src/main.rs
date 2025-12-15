@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 use std::collections::BTreeSet;
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 
 struct Unfold {
     // src_name: String, // e.g. "main.rs"
@@ -21,7 +21,7 @@ impl Unfold {
         let library_import_name_env = std::env::var("CP_UNFOLD_LIBRARY_NAME");
         let library_import_name = library_import_name_env.unwrap_or("library".to_string());
 
-        let file_dir_str = std::env::var("CP_UNFOLD_FILE_DIR").expect("CP_UNFOLD_FILE_PATH environment variable not set");
+        let file_dir_str = std::env::var("CP_UNFOLD_FILE_DIR").expect("CP_UNFOLD_FILE_DIR environment variable not set");
         let file_dir = PathBuf::from(&file_dir_str);
 
         let file_path = file_dir.join(src_name);
@@ -109,7 +109,7 @@ impl Unfold {
         import_path_v
     }
 
-    fn unfold_rec(&mut self, file_path: &PathBuf) -> Result<(String, String), std::io::Error> {
+    fn unfold_rec(&mut self, file_path: &Path) -> Result<(String, String), std::io::Error> {
         let content = read_to_string(file_path.to_str().unwrap())?;
         let mut res = String::new();
         let mut res_inner_directive = String::new();
@@ -247,7 +247,7 @@ impl Unfold {
         Ok(res_use)
     }
 
-    fn unfold(&mut self, file_path: &PathBuf) -> Result<String, std::io::Error> {
+    fn unfold(&mut self, file_path: &Path) -> Result<String, std::io::Error> {
         let (res, res_inner_directive) = self.unfold_rec(file_path)?;
         let res_use = self.unfold_use()?;
         Ok(res_inner_directive + &res_use + &res)
