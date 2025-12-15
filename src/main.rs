@@ -111,8 +111,8 @@ impl Unfold {
 
     fn unfold_rec(&mut self, file_path: PathBuf) -> Result<(String, String), std::io::Error> {
         let content = read_to_string(file_path.to_str().unwrap())?;
-        let mut res = "".to_string();
-        let mut res_inner_directive = "".to_string();
+        let mut res = String::new();
+        let mut res_inner_directive = String::new();
         for line in content.lines() {
             let str_v: Vec<&str> = line.split_whitespace().collect();
 
@@ -157,7 +157,7 @@ impl Unfold {
                     iter().
                     enumerate().
                     filter(|(idx, _)| *idx > ofs).
-                    fold("".to_string(), |str, (_, val)| str + *val);
+                    fold(String::new(), |str, (_, val)| str + *val);
             import_path.pop(); // セミコロンを取る
             let import_path_v = Unfold::split_by_coloncolon(import_path);
 
@@ -213,7 +213,7 @@ impl Unfold {
     }
 
     fn unfold_use(&mut self) -> Result<String, std::io::Error> {
-        let mut res_use = "".to_string();
+        let mut res_use = String::new();
         // used_lib の中身が used_lib_star とマッチしないかどうかチェック
         for import_path in &self.used_lib_star {
             res_use += "use ";
@@ -223,7 +223,7 @@ impl Unfold {
         for import_path in &self.used_lib {
             let res_import: Vec<String> = import_path.split("::").map(|str| str.to_string()).collect();
 
-            let mut import_path = "".to_string();
+            let mut import_path = String::new();
 
             let mut contained = false;
             for i in 0..res_import.len() {
