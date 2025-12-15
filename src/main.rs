@@ -95,7 +95,7 @@ impl Unfold {
             } else if c == '}' {
                 depth -= 1;
             }
-            if c == ':' && import_path_chars[i+1] == ':' && depth == 0 {
+            if c == ':' && i + 1 < import_path_chars.len() && import_path_chars[i+1] == ':' && depth == 0 {
                 prev = true;
                 import_path_v.push(tmp_v.iter().collect());
                 tmp_v = vec![];
