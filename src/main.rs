@@ -138,8 +138,6 @@ impl Unfold {
             }
 
 
-            // 相対読み込み (use super::graph::* など) は使わないものとする
-            // (実際どう読むんだ？まあサイクルがないことは保証されるはずだからグラフ生やせばどうとでもなる気がする)
             // 二文字目で全部読み込まれるものとする (そうじゃないケースあるかな)
             let ofs = if str_v[0] == "use" {
                 0
@@ -161,7 +159,44 @@ impl Unfold {
             import_path.pop(); // セミコロンを取る
             let import_path_v = Unfold::split_by_coloncolon(import_path);
 
-            if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" {
+            if import_path_v[0] == "super" {
+                // 相対インポート (use super::graph::* など)
+                // 現在のファイルの親ディレクトリを基準に解決
+                let mut path = file_path.parent().unwrap().to_path_buf();
+                
+                let mut super_count = 0;
+                for part in &import_path_v {
+                    if part == "super" {
+                        super_count += 1;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // super の数だけ親に上がる
+                for _ in 0..super_count {
+                    path = path.parent().unwrap().to_path_buf();
+                }
+                
+                // super の後のパスを追加
+                for i in super_count..import_path_v.len()-1 {
+                    let join_str = if i == import_path_v.len() - 2 {
+                        &(import_path_v[i].clone() + ".rs")
+                    } else {
+                        &import_path_v[i]
+                    };
+                    path = path.join(join_str);
+                }
+
+                if self.unfolded_path.contains(path.to_str().unwrap()) {
+                    continue;
+                }
+                self.unfolded_path.insert(path.to_str().unwrap().to_string());
+
+                let (child_res, _) = self.unfold_rec(&path)?;
+                res += &child_res;
+                res += "\n";
+            } else if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" {
                 // {} を展開して、self.used_lib に放り込む
                 // * の対応が大変！
                 // 後でチェック
@@ -179,7 +214,6 @@ impl Unfold {
             } else {
                 // self.used_lib に含まれていたらスルー
                 // library::hoge::fuga::* か crate::library::hoge::fuga::* で {library_path}/hoge/fuga.rs の中身を import しているとみなす
-                // super は無視
 
                 // library::より下から見る
                 // {library_path}/hoge/fuga.rs をトップレベルとして指定して、unfold する (used_lib は共通)
