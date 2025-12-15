@@ -29,90 +29,34 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let mut config = Config::load();
-    let config_exists = Config::exists();
 
-    // 設定ファイルが存在せず、file_dir が指定されていない場合は標準入力から取得
-    if !config_exists && args.file_dir.is_none() && config.file_dir.is_none() {
-        use std::io::{self, Write};
-
-        eprint!("Enter file directory (source file location): ");
-        io::stderr().flush().unwrap();
-        
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read line");
-        let file_dir_input = input.trim().to_string();
-
-        if file_dir_input.is_empty() {
-            eprintln!("Error: file_dir cannot be empty");
+    // 設定を初期化して実行時設定を取得
+    let runtime_config = match Config::initialize_and_merge(
+        args.src,
+        args.library_name,
+        args.file_dir,
+        args.library_path,
+    ) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{}", e);
             std::process::exit(1);
         }
+    };
 
-        // 設定を作成して保存
-        let new_config = Config {
-            file_dir: Some(file_dir_input.clone()),
-            library_name: args.library_name.clone(),
-            library_path: args.library_path.as_ref().map(|p| p.display().to_string()),
-        };
-        
-        if let Err(e) = new_config.save() {
-            eprintln!("Warning: Could not save config file: {}", e);
-        } else {
-            eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
-        }
-        
-        config = new_config;
-    }
-
-    // 優先順位: CLI引数 > 設定ファイル > デフォルト値
-    let src = args.src.clone()
-        .or_else(|| config.file_dir.as_ref().map(|_| "main.rs".to_string()))
-        .unwrap_or_else(|| "main.rs".to_string());
-
-    let library_name = args.library_name.clone()
-        .or(config.library_name.clone())
-        .unwrap_or_else(|| "library".to_string());
-
-    let file_dir = args.file_dir.clone()
-        .or_else(|| config.file_dir.as_ref().map(PathBuf::from))
-        .unwrap_or_else(|| {
-            eprintln!("Error: --file-dir is required (or set in config file at ~/.config/cp_unfold/config.toml)");
-            std::process::exit(1);
-        });
-
-    let library_path = args.library_path.clone()
-        .or_else(|| config.library_path.as_ref().map(PathBuf::from));
-
-    // CLI引数で設定が指定された場合も保存（初回のみ）
-    if !config_exists && (args.file_dir.is_some() || args.library_name.is_some() || args.library_path.is_some()) {
-        let new_config = Config {
-            file_dir: args.file_dir.as_ref().map(|p| p.display().to_string()),
-            library_name: args.library_name.clone(),
-            library_path: args.library_path.as_ref().map(|p| p.display().to_string()),
-        };
-        if let Err(e) = new_config.save() {
-            eprintln!("Warning: Could not save config file: {}", e);
-        } else {
-            eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
-        }
-    }
-
+    // Unfoldを実行
     let mut unfold = Unfold::from_args(
-        src,
-        library_name,
-        file_dir,
-        library_path,
+        runtime_config.src,
+        runtime_config.library_name,
+        runtime_config.file_dir,
+        runtime_config.library_path,
     );
-    let res = unfold.unfold();
 
-    match res {
-        Ok(val) => {
-            println!("{}", val);
-        },
-        Err(val) => {
-            eprintln!("{:?}", val);
+    match unfold.unfold() {
+        Ok(output) => println!("{}", output),
+        Err(e) => {
+            eprintln!("{:?}", e);
             std::process::exit(1);
         }
     }
-
 }
