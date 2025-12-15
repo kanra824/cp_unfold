@@ -1,46 +1,50 @@
 # cp_unfold
-
-競技プログラミング用のRustライブラリ展開ツールです。複数のファイルに分割されたライブラリコードを1つのファイルに展開します。
-
-## 機能
-
-- `use library::*` や `use crate::library::*` 形式のインポートを解決してコードを展開
-- ネストされた `use` 文や `{a, b, c}` 形式の複数インポートに対応
-- 重複インポートの削除
-- `mod` および `pub mod` 宣言の自動削除
-- inner attributes (`#![...]`) の保持
+競技プログラミング用のRustコード展開ツール。複数ファイルに分割されたライブラリを1ファイルに統合し、提出用の単一ファイルを生成します。
 
 ## インストール
 
 ```bash
-cargo build --release
+git clone {このリポジトリ}
+cd cp_unfold
+cargo install --path .
 ```
-
-ビルドされたバイナリは `target/release/cp_unfold` に生成されます。
 
 ## 使い方
 
-環境変数を設定してプログラムを実行します。
+### 初回実行
 
 ```bash
-export CP_UNFOLD_FILE_DIR=/path/to/your/project/src
-export CP_UNFOLD_LIBRARY_PATH=/path/to/your/project/src/library
-export CP_UNFOLD_SRC=main.rs
-export CP_UNFOLD_LIBRARY_NAME=library
-
-cp_unfold > output.rs
+cp_unfold
+# Enter file directory (source file location): /path/to/your/project/src
+# Config saved to ~/.config/cp_unfold/config.toml
 ```
 
-### 環境変数
+初回実行時に対話的にプロジェクトディレクトリを設定します。設定は `~/.config/cp_unfold/config.toml` に保存されます。
 
-- `CP_UNFOLD_FILE_DIR` (必須): ソースファイルのディレクトリパス
-- `CP_UNFOLD_LIBRARY_PATH` (オプション): ライブラリのディレクトリパス (デフォルト: `{CP_UNFOLD_FILE_DIR}/{CP_UNFOLD_LIBRARY_NAME}`)
-- `CP_UNFOLD_SRC` (オプション): 展開するソースファイル名 (デフォルト: `main.rs`)
-- `CP_UNFOLD_LIBRARY_NAME` (オプション): ライブラリのモジュール名 (デフォルト: `library`)
+### 2回目以降
+
+```bash
+cp_unfold > submission.rs
+```
+
+保存された設定を使って展開します。
+
+### オプション
+
+```bash
+cp_unfold [OPTIONS]
+
+Options:
+  -f, --file-dir <FILE_DIR>          ソースファイルがあるディレクトリ
+  -s, --src <SRC>                    展開するソースファイル名 [default: main.rs]
+  -l, --library-name <LIBRARY_NAME>  ライブラリのインポート名 [default: library]
+  -p, --library-path <LIBRARY_PATH>  ライブラリディレクトリのパス
+  -h, --help                         ヘルプを表示
+```
 
 ## 例
 
-### ディレクトリ構造
+### プロジェクト構造
 
 ```
 src/
@@ -57,19 +61,34 @@ use library::graph::*;
 use library::union_find::UnionFind;
 
 fn main() {
-    // your code
+    let g = Graph::new(10);
+    let mut uf = UnionFind::new(100);
+    // あなたの解答コード
 }
 ```
 
 ### 実行
 
 ```bash
-export CP_UNFOLD_FILE_DIR=./src
-./target/release/cp_unfold > submission.rs
+cp_unfold > submission.rs
 ```
 
-展開されたコードが `submission.rs` に出力されます。
+`submission.rs` にすべてのライブラリコードが統合された提出用ファイルが生成されます。
 
-## 制限事項
+## 使える構文
 
-- ライブラリコード内に循環依存がないことを前提としています
+- `use library::module::*`
+- `use crate::library::module::Type`
+- `use library::{module1, module2}`
+- `use super::sibling_module::*` (相対インポート)
+- `use std::{io::{self, Read}, fs::File}` (ネストされた中括弧)
+
+## サポートしていない構文
+- ライブラリインポートでの `use ... as` エイリアスには非対応
+- 複数行にわたるケース
+```
+use std::{
+    io::{self, Read},
+    fs::File
+};
+```
