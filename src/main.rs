@@ -29,38 +29,9 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let mut config = Config::load();
-    let config_exists = Config::exists();
 
-    // 設定ファイルが存在せず、CLI引数もない場合は対話的に初期化
-    if !config_exists && args.file_dir.is_none() && config.file_dir.is_none() {
-        config = Config::interactive_init(args.library_name.clone(), args.library_path.clone());
-        
-        if let Err(e) = config.save() {
-            eprintln!("Warning: Could not save config file: {}", e);
-        } else {
-            eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
-        }
-    }
-    // CLI引数で設定が指定された場合も保存（初回のみ）
-    else if !config_exists && (args.file_dir.is_some() || args.library_name.is_some() || args.library_path.is_some()) {
-        let new_config = Config::from_cli_args(
-            args.file_dir.as_ref(),
-            args.library_name.clone(),
-            args.library_path.as_ref(),
-        );
-        
-        if let Err(e) = new_config.save() {
-            eprintln!("Warning: Could not save config file: {}", e);
-        } else {
-            eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
-        }
-        
-        config = new_config;
-    }
-
-    // CLI引数と設定ファイルをマージして実行時設定を作成
-    let runtime_config = match config.merge_with_cli(
+    // 設定を初期化して実行時設定を取得
+    let runtime_config = match Config::initialize_and_merge(
         args.src,
         args.library_name,
         args.file_dir,

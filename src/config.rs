@@ -124,4 +124,45 @@ impl Config {
             library_path,
         })
     }
+
+    /// 設定を初期化してCLI引数とマージした実行時設定を返す
+    pub fn initialize_and_merge(
+        cli_src: Option<String>,
+        cli_library_name: Option<String>,
+        cli_file_dir: Option<PathBuf>,
+        cli_library_path: Option<PathBuf>,
+    ) -> Result<RuntimeConfig, String> {
+        let mut config = Self::load();
+        let config_exists = Self::exists();
+
+        // 設定ファイルが存在せず、CLI引数もない場合は対話的に初期化
+        if !config_exists && cli_file_dir.is_none() && config.file_dir.is_none() {
+            config = Self::interactive_init(cli_library_name.clone(), cli_library_path.clone());
+            
+            if let Err(e) = config.save() {
+                eprintln!("Warning: Could not save config file: {}", e);
+            } else {
+                eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
+            }
+        }
+        // CLI引数で設定が指定された場合も保存（初回のみ）
+        else if !config_exists && (cli_file_dir.is_some() || cli_library_name.is_some() || cli_library_path.is_some()) {
+            let new_config = Self::from_cli_args(
+                cli_file_dir.as_ref(),
+                cli_library_name.clone(),
+                cli_library_path.as_ref(),
+            );
+            
+            if let Err(e) = new_config.save() {
+                eprintln!("Warning: Could not save config file: {}", e);
+            } else {
+                eprintln!("Config saved to ~/.config/cp_unfold/config.toml");
+            }
+            
+            config = new_config;
+        }
+
+        // CLI引数と設定ファイルをマージ
+        config.merge_with_cli(cli_src, cli_library_name, cli_file_dir, cli_library_path)
+    }
 }
