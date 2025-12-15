@@ -221,18 +221,16 @@ impl Unfold {
             res_use += ";\n";
         }
         for import_path in &self.used_lib {
-            let res_import: Vec<String> = import_path.split("::").map(|str| str.to_string()).collect();
-
-            let mut import_path = String::new();
+            let mut current_path = String::new();
 
             let mut contained = false;
-            for i in 0..res_import.len() {
+            for (i, part) in import_path.split("::").enumerate() {
                 if i != 0 {
-                    import_path += "::";
+                    current_path += "::";
                 }
-                import_path += &res_import[i];
+                current_path += part;
 
-                if self.used_lib_star.contains(&(import_path.clone() + "::*")) {
+                if self.used_lib_star.contains(&(current_path.clone() + "::*")) {
                     contained = true;
                     break;
                 }
@@ -241,7 +239,7 @@ impl Unfold {
                 continue;
             }
             res_use += "use ";
-            res_use += &import_path;
+            res_use += &current_path;
             res_use += ";\n";
         }
 
