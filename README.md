@@ -5,8 +5,6 @@
 
 競技プログラミング用のRustコード展開ツール。複数ファイルに分割されたライブラリを1ファイルに統合し、提出用の単一ファイルを生成します。
 
-A command-line tool for competitive programmers to flatten modular Rust projects into a single file for submission.
-
 ## ✨ 機能
 
 - 🚀 **高速でシンプル**: 1コマンドでプロジェクトを展開
