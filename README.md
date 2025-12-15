@@ -1,13 +1,11 @@
 # cp_unfold
-
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 競技プログラミング用のRustコード展開ツール。複数ファイルに分割されたライブラリを1ファイルに統合し、提出用の単一ファイルを生成します。
 
 ## インストール
 
 ```bash
+git clone {このリポジトリ}
+cd cp_unfold
 cargo install --path .
 ```
 
@@ -77,7 +75,7 @@ cp_unfold > submission.rs
 
 `submission.rs` にすべてのライブラリコードが統合された提出用ファイルが生成されます。
 
-## サポートされているインポート
+## 使える構文
 
 - `use library::module::*`
 - `use crate::library::module::Type`
@@ -85,11 +83,12 @@ cp_unfold > submission.rs
 - `use super::sibling_module::*` (相対インポート)
 - `use std::{io::{self, Read}, fs::File}` (ネストされた中括弧)
 
-## 制限事項
-
-- ライブラリコード内に循環依存がないことを前提としています
+## サポートしていない構文
 - ライブラリインポートでの `use ... as` エイリアスには非対応
-
-## ライセンス
-
-MIT License
+- 複数行にわたるケース
+```
+use std::{
+    io::{self, Read},
+    fs::File
+};
+```
