@@ -43,7 +43,7 @@ impl Unfold {
         }
     }
 
-    fn unfold_curly_bracket_rec(now: &mut Vec<String>, idx: usize, import_path_v: &Vec<String>, res: &mut Vec<Vec<String>>) {
+    fn unfold_curly_bracket_rec(now: &mut Vec<String>, idx: usize, import_path_v: &[String], res: &mut Vec<Vec<String>>) {
         if idx == import_path_v.len() {
             res.push(now.clone());
             return;
@@ -75,7 +75,7 @@ impl Unfold {
         }
     }
 
-    fn unfold_curly_bracket(import_path_v: &Vec<String>) -> Vec<Vec<String>> {
+    fn unfold_curly_bracket(import_path_v: &[String]) -> Vec<Vec<String>> {
         let mut now = vec![];
         let mut res = vec![];
         Unfold::unfold_curly_bracket_rec(&mut now, 0, import_path_v, &mut res);
