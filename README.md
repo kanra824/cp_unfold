@@ -3,32 +3,32 @@
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+競技プログラミング用のRustコード展開ツール。複数ファイルに分割されたライブラリを1ファイルに統合し、提出用の単一ファイルを生成します。
+
 A command-line tool for competitive programmers to flatten modular Rust projects into a single file for submission.
 
-競技プログラミング用のRustコード展開ツール。複数ファイルに分割されたライブラリを1ファイルに統合します。
+## ✨ 機能
 
-## ✨ Features
+- 🚀 **高速でシンプル**: 1コマンドでプロジェクトを展開
+- 📦 **賢いインポート解決**: `use library::*`、`use super::*`、ネストされたインポートなど複雑なパターンに対応
+- 🔄 **相対インポート対応**: `super::`による相対インポートを正しく解決
+- 🎯 **重複排除**: 冗長なインポートを自動削除
+- ⚙️ **永続的な設定**: プロジェクト設定を保存して繰り返し使用可能
+- 💾 **対話的セットアップ**: 初回実行時に設定をガイド
 
-- 🚀 **Fast and Simple**: One-command solution to unfold your Rust projects
-- 📦 **Smart Import Resolution**: Handles complex import patterns including `use library::*`, `use super::*`, and nested imports
-- 🔄 **Relative Import Support**: Resolves `super::` imports correctly
-- 🎯 **Duplicate Elimination**: Automatically removes redundant imports
-- ⚙️ **Persistent Configuration**: Save your project settings for repeated use
-- 💾 **Interactive Setup**: First-run wizard guides you through configuration
+## 📥 インストール
 
-## 📥 Installation
-
-### From source
+### ソースから
 
 ```bash
 cargo install --path .
 ```
 
-Or download pre-built binaries from [Releases](https://github.com/kanra824/cp_unfold/releases).
+または [Releases](https://github.com/kanra824/cp_unfold/releases) からビルド済みバイナリをダウンロード。
 
-## 🚀 Quick Start
+## 🚀 クイックスタート
 
-### First Run (Interactive Setup)
+### 初回実行（対話的セットアップ）
 
 ```bash
 cp_unfold
@@ -36,34 +36,34 @@ cp_unfold
 # Config saved to ~/.config/cp_unfold/config.toml
 ```
 
-### Subsequent Runs
+### 2回目以降
 
 ```bash
-# Use saved configuration
+# 保存された設定を使用
 cp_unfold > submission.rs
 
-# Override specific options
+# 特定のオプションを上書き
 cp_unfold --src another.rs > output.rs
 ```
 
-## 📖 Usage
+## 📖 使い方
 
-### Command-line Options
+### コマンドラインオプション
 
 ```bash
 cp_unfold [OPTIONS]
 
 Options:
-  -f, --file-dir <FILE_DIR>          Directory containing the source file
-  -s, --src <SRC>                    Source file name to unfold [default: main.rs]
-  -l, --library-name <LIBRARY_NAME>  Library import name [default: library]
-  -p, --library-path <LIBRARY_PATH>  Path to the library directory
-  -h, --help                         Print help
+  -f, --file-dir <FILE_DIR>          ソースファイルがあるディレクトリ
+  -s, --src <SRC>                    展開するソースファイル名 [デフォルト: main.rs]
+  -l, --library-name <LIBRARY_NAME>  ライブラリのインポート名 [デフォルト: library]
+  -p, --library-path <LIBRARY_PATH>  ライブラリディレクトリのパス
+  -h, --help                         ヘルプを表示
 ```
 
-### Configuration File
+### 設定ファイル
 
-Settings are stored at `~/.config/cp_unfold/config.toml`:
+設定は `~/.config/cp_unfold/config.toml` に保存されます:
 
 ```toml
 file_dir = "/home/user/project/src"
@@ -71,11 +71,11 @@ library_name = "library"
 library_path = "/home/user/project/src/library"
 ```
 
-Edit this file directly or let the tool create it on first run.
+このファイルを直接編集するか、初回実行時にツールに作成させることができます。
 
-## 📁 Example
+## 📁 使用例
 
-### Project Structure
+### プロジェクト構造
 
 ```
 src/
@@ -87,7 +87,7 @@ src/
         └── modint.rs
 ```
 
-### Input: `main.rs`
+### 入力: `main.rs`
 
 ```rust
 use library::graph::*;
@@ -98,7 +98,7 @@ fn main() {
     let mut uf = UnionFind::new(100);
     let g = Graph::new(10);
     let m = ModInt::new(1000000007);
-    // your solution code here
+    // あなたの解答コード
 }
 ```
 
@@ -117,85 +117,85 @@ impl Graph {
 }
 ```
 
-### Run
+### 実行
 
 ```bash
 cp_unfold > submission.rs
 ```
 
-### Output: Single file ready for submission
+### 出力: 提出用の単一ファイル
 
-All imports are resolved and library code is inlined into one file.
+すべてのインポートが解決され、ライブラリコードが1つのファイルに統合されます。
 
-## 🎯 Supported Import Patterns
+## 🎯 サポートされているインポートパターン
 
 - ✅ `use library::module::*`
 - ✅ `use crate::library::module::Type`
 - ✅ `use library::{module1, module2}`
-- ✅ `use super::sibling_module::*` (relative imports)
-- ✅ Nested braces: `use std::{io::{self, Read}, fs::File}`
+- ✅ `use super::sibling_module::*` (相対インポート)
+- ✅ ネストされた中括弧: `use std::{io::{self, Read}, fs::File}`
 
-## ⚙️ How It Works
+## ⚙️ 仕組み
 
-1. **Parse**: Reads your main source file and identifies library imports
-2. **Resolve**: Recursively resolves all imports including relative paths (`super::`)
-3. **Merge**: Combines all library code into a single output
-4. **Deduplicate**: Removes redundant imports and declarations
-5. **Output**: Generates a single standalone file
+1. **解析**: メインソースファイルを読み込み、ライブラリインポートを識別
+2. **解決**: 相対パス (`super::`) を含むすべてのインポートを再帰的に解決
+3. **統合**: すべてのライブラリコードを1つの出力に結合
+4. **重複排除**: 冗長なインポートと宣言を削除
+5. **出力**: 単一のスタンドアロンファイルを生成
 
-## 🛠️ Advanced Usage
+## 🛠️ 高度な使い方
 
-### Multiple Projects
+### 複数プロジェクト
 
 ```bash
-# Project A
+# プロジェクトA
 cp_unfold --file-dir ~/projectA/src > solutionA.rs
 
-# Project B
+# プロジェクトB
 cp_unfold --file-dir ~/projectB/src > solutionB.rs
 ```
 
-### Custom Library Structure
+### カスタムライブラリ構造
 
 ```bash
 cp_unfold --library-name mylib --library-path ./src/mylib
 ```
 
-### Pipe to Clipboard (Linux)
+### クリップボードにパイプ (Linux)
 
 ```bash
 cp_unfold | xclip -selection clipboard
 ```
 
-### Pipe to Clipboard (macOS)
+### クリップボードにパイプ (macOS)
 
 ```bash
 cp_unfold | pbcopy
 ```
 
-## 🤝 Contributing
+## 🤝 コントリビューション
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+プルリクエストを歓迎します！
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. リポジトリをフォーク
+2. フィーチャーブランチを作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add some amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. プルリクエストを作成
 
-## 📝 License
+## 📝 ライセンス
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+このプロジェクトはMITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。
 
-## 🙏 Acknowledgments
+## 🙏 謝辞
 
-Built for competitive programmers who want to maintain clean, modular code while meeting single-file submission requirements.
+きれいでモジュール化されたコードを維持しながら、単一ファイル提出要件を満たしたい競技プログラマーのために作られました。
 
-## ⚠️ Limitations
+## ⚠️ 制限事項
 
-- Assumes no circular dependencies in library code
-- Does not support `use ... as` aliasing in library imports (only in standard library imports)
-- Relative imports (`super::`) are resolved based on file system structure
+- ライブラリコード内に循環依存がないことを前提としています
+- ライブラリインポートでの `use ... as` エイリアスには非対応（標準ライブラリのインポートでは使用可能）
+- 相対インポート (`super::`) はファイルシステム構造に基づいて解決されます
 
 ---
 
