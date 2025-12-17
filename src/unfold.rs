@@ -39,70 +39,83 @@ impl Unfold {
         }
     }
 
-    fn unfold_curly_bracket_rec(now: &mut Vec<String>, idx: usize, import_path_v: &[String], res: &mut Vec<Vec<String>>) {
-        if idx == import_path_v.len() {
-            res.push(now.clone());
-            return;
-        }
+    fn unfold_super(&mut self, file_path: &Path, import_path_v: &[String], res: &mut String) -> Result<(), std::io::Error> {
 
-        let str = import_path_v[idx].chars().collect::<Vec<_>>();
-
-        if str[0] == '{' {
-            // 終端のはずで、str を import_path_v の形に展開したうえで、now をそのまま渡して再帰を始めればいい
-            let mut child_v: Vec<String> = vec![];
-            let mut tmp_v = vec![];
-            for i in 1..str.len()-1 {
-                if str[i] == ',' {
-                    child_v.push(tmp_v.iter().collect());
-                    tmp_v = vec![];
-                } else {
-                    tmp_v.push(str[i]);
-                }
-            }
-            child_v.push(tmp_v.iter().collect());
-            for child in child_v {
-                let import_path_v = Unfold::split_by_coloncolon(child);
-                Unfold::unfold_curly_bracket_rec(now, 0, &import_path_v, res);
-            }
-        } else {
-            now.push(import_path_v[idx].to_string());
-            Unfold::unfold_curly_bracket_rec(now, idx + 1, import_path_v, res);
-            now.pop();
-        }
-    }
-
-    fn unfold_curly_bracket(import_path_v: &[String]) -> Vec<Vec<String>> {
-        let mut now = vec![];
-        let mut res = vec![];
-        Unfold::unfold_curly_bracket_rec(&mut now, 0, import_path_v, &mut res);
-
-        res
-    }
-
-    fn split_by_coloncolon(import_path: String) -> Vec<String> {
-        let mut depth = 0; // depth == 0 のときだけ :: を split
-        let mut prev = false;
-        let mut import_path_v: Vec<String> = vec![];
-        let mut tmp_v = vec![];
-        let import_path_chars = import_path.chars().collect::<Vec<_>>();
-        for (i, &c) in import_path_chars.iter().enumerate() {
-            if c == '{' {
-                depth += 1;
-            } else if c == '}' {
-                depth -= 1;
-            }
-            if c == ':' && i + 1 < import_path_chars.len() && import_path_chars[i+1] == ':' && depth == 0 {
-                prev = true;
-                import_path_v.push(tmp_v.iter().collect());
-                tmp_v = vec![];
-            } else if prev {
-                prev = false;
+        // 相対インポート (use super::graph::* など)
+        // 現在のファイルの親ディレクトリを基準に解決
+        let mut path = file_path.parent().unwrap().to_path_buf();
+        
+        let mut super_count = 0;
+        for part in import_path_v {
+            if part == "super" {
+                super_count += 1;
             } else {
-                tmp_v.push(c);
+                break;
             }
         }
-        import_path_v.push(tmp_v.iter().collect());
-        import_path_v
+        
+        // super の数だけ親に上がる
+        for _ in 0..super_count {
+            path = path.parent().unwrap().to_path_buf();
+        }
+        
+        // super の後のパスを追加
+        for i in super_count..import_path_v.len()-1 {
+            let join_str = if i == import_path_v.len() - 2 {
+                &(import_path_v[i].clone() + ".rs")
+            } else {
+                &import_path_v[i]
+            };
+            path = path.join(join_str);
+        }
+
+        if self.unfolded_path.contains(path.to_str().unwrap()) {
+            return Ok(());
+        }
+        self.unfolded_path.insert(path.to_str().unwrap().to_string());
+
+        let (child_res, _) = self.unfold_rec(&path)?;
+        res.push_str(&child_res);
+        res.push_str("\n");
+        Ok(())
+    }
+
+    fn unfold_other_crate(&mut self, import_path: String, import_path_v: &[String]) {
+        if import_path_v.last().unwrap() == "*" {
+            self.used_lib_star.insert(import_path);
+        } else {
+            self.used_lib.insert(import_path);
+        }
+    }
+
+    fn unfold_library(&mut self, import_path_v: &[String], res: &mut String) -> Result<(), std::io::Error> {
+        // library::より下から見る
+        // {library_path}/hoge/fuga.rs をトップレベルとして指定して、unfold する (used_lib は共通)
+        let ofs = if import_path_v[0] == "crate" {
+            2
+        } else {
+            1
+        };
+
+        let mut path = self.library_path.clone();
+        for i in ofs..import_path_v.len()-1 {
+            let join_str = if i == import_path_v.len() - 2 {
+                &(import_path_v[i].clone() + ".rs")
+            } else {
+                &import_path_v[i]
+            };
+            path = path.join(join_str);
+        }
+
+        if self.unfolded_path.contains(path.to_str().unwrap()) {
+            return Ok(());
+        }
+        self.unfolded_path.insert(path.to_str().unwrap().to_string());
+
+        let (child_res, _) = self.unfold_rec(&path)?;
+        res.push_str(&child_res);
+        res.push_str("\n");
+        Ok(())
     }
 
     fn unfold_rec(&mut self, file_path: &Path) -> Result<(String, String), std::io::Error> {
@@ -145,7 +158,7 @@ impl Unfold {
                 continue;
             };
 
-            // 後ろ全部繋げる
+            // use もしくは pub use から 後ろを全部繋げる
             let mut import_path =
                 str_v.
                     iter().
@@ -153,91 +166,20 @@ impl Unfold {
                     filter(|(idx, _)| *idx > ofs).
                     fold(String::new(), |str, (_, val)| str + *val);
             import_path.pop(); // セミコロンを取る
-            let import_path_v = Unfold::split_by_coloncolon(import_path);
+            let import_path_v = split_by_coloncolon(import_path); // コロンで分割
+            let res_import_v = unfold_curly_bracket(&import_path_v); // 波括弧を展開
 
-            if import_path_v[0] == "super" {
-                // 相対インポート (use super::graph::* など)
-                // 現在のファイルの親ディレクトリを基準に解決
-                let mut path = file_path.parent().unwrap().to_path_buf();
-                
-                let mut super_count = 0;
-                for part in &import_path_v {
-                    if part == "super" {
-                        super_count += 1;
-                    } else {
-                        break;
-                    }
+            for import_path_v in res_import_v { // 展開された各パスについて処理
+                let import_path = import_path_v.join("::");
+                if import_path_v[0] == "super" { // 相対インポート
+                    self.unfold_super(file_path, &import_path_v, &mut res)?;
+                } else if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" { // 他クレートからのインポート
+                    self.unfold_other_crate(import_path, &import_path_v);
+                } else { // library からのインポート
+                    self.unfold_library(&import_path_v, &mut res)?;
                 }
-                
-                // super の数だけ親に上がる
-                for _ in 0..super_count {
-                    path = path.parent().unwrap().to_path_buf();
-                }
-                
-                // super の後のパスを追加
-                for i in super_count..import_path_v.len()-1 {
-                    let join_str = if i == import_path_v.len() - 2 {
-                        &(import_path_v[i].clone() + ".rs")
-                    } else {
-                        &import_path_v[i]
-                    };
-                    path = path.join(join_str);
-                }
-
-                if self.unfolded_path.contains(path.to_str().unwrap()) {
-                    continue;
-                }
-                self.unfolded_path.insert(path.to_str().unwrap().to_string());
-
-                let (child_res, _) = self.unfold_rec(&path)?;
-                res += &child_res;
-                res += "\n";
-            } else if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" {
-                // {} を展開して、self.used_lib に放り込む
-                // * の対応が大変！
-                // 後でチェック
-                let res_import_v = Unfold::unfold_curly_bracket(&import_path_v);
-                for res_import in res_import_v {
-
-                    let import_path = res_import.join("::");
-
-                    if res_import.last().unwrap() == "*" {
-                        self.used_lib_star.insert(import_path);
-                    } else {
-                        self.used_lib.insert(import_path);
-                    }
-                }
-            } else {
-                // self.used_lib に含まれていたらスルー
-                // library::hoge::fuga::* か crate::library::hoge::fuga::* で {library_path}/hoge/fuga.rs の中身を import しているとみなす
-
-                // library::より下から見る
-                // {library_path}/hoge/fuga.rs をトップレベルとして指定して、unfold する (used_lib は共通)
-                let ofs = if import_path_v[0] == "crate" {
-                    2
-                } else {
-                    1
-                };
-
-                let mut path = self.library_path.clone();
-                for i in ofs..import_path_v.len()-1 {
-                    let join_str = if i == import_path_v.len() - 2 {
-                        &(import_path_v[i].clone() + ".rs")
-                    } else {
-                        &import_path_v[i]
-                    };
-                    path = path.join(join_str);
-                }
-
-                if self.unfolded_path.contains(path.to_str().unwrap()) {
-                    continue;
-                }
-                self.unfolded_path.insert(path.to_str().unwrap().to_string());
-
-                let (child_res, _) = self.unfold_rec(&path)?;
-                res += &child_res;
-                res += "\n";
             }
+
         }
         Ok((res, res_inner_directive))
     }
@@ -282,4 +224,70 @@ impl Unfold {
         let res_use = self.unfold_use()?;
         Ok(res_inner_directive + &res_use + &res)
     }
+}
+
+fn split_by_coloncolon(import_path: String) -> Vec<String> {
+    let mut depth = 0; // depth == 0 のときだけ :: を split
+    let mut prev = false;
+    let mut import_path_v: Vec<String> = vec![];
+    let mut tmp_v = vec![];
+    let import_path_chars = import_path.chars().collect::<Vec<_>>();
+    for (i, &c) in import_path_chars.iter().enumerate() {
+        if c == '{' {
+            depth += 1;
+        } else if c == '}' {
+            depth -= 1;
+        }
+        if c == ':' && i + 1 < import_path_chars.len() && import_path_chars[i+1] == ':' && depth == 0 {
+            prev = true;
+            import_path_v.push(tmp_v.iter().collect());
+            tmp_v = vec![];
+        } else if prev {
+            prev = false;
+        } else {
+            tmp_v.push(c);
+        }
+    }
+    import_path_v.push(tmp_v.iter().collect());
+    import_path_v
+}
+
+fn unfold_curly_bracket_rec(now: &mut Vec<String>, idx: usize, import_path_v: &[String], res: &mut Vec<Vec<String>>) {
+    if idx == import_path_v.len() {
+        res.push(now.clone());
+        return;
+    }
+
+    let str = import_path_v[idx].chars().collect::<Vec<_>>();
+
+    if str[0] == '{' {
+        // 終端のはずで、str を import_path_v の形に展開したうえで、now をそのまま渡して再帰を始めればいい
+        let mut child_v: Vec<String> = vec![];
+        let mut tmp_v = vec![];
+        for i in 1..str.len()-1 {
+            if str[i] == ',' {
+                child_v.push(tmp_v.iter().collect());
+                tmp_v = vec![];
+            } else {
+                tmp_v.push(str[i]);
+            }
+        }
+        child_v.push(tmp_v.iter().collect());
+        for child in child_v {
+            let import_path_v = split_by_coloncolon(child);
+            unfold_curly_bracket_rec(now, 0, &import_path_v, res);
+        }
+    } else {
+        now.push(import_path_v[idx].to_string());
+        unfold_curly_bracket_rec(now, idx + 1, import_path_v, res);
+        now.pop();
+    }
+}
+
+fn unfold_curly_bracket(import_path_v: &[String]) -> Vec<Vec<String>> {
+    let mut now = vec![];
+    let mut res = vec![];
+    unfold_curly_bracket_rec(&mut now, 0, import_path_v, &mut res);
+
+    res
 }
