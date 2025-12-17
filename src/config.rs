@@ -5,6 +5,7 @@ use std::io::{self, Write};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Config {
+    pub src: Option<String>,
     pub file_dir: Option<String>,
     pub library_name: Option<String>,
     pub library_path: Option<String>,
@@ -61,7 +62,19 @@ impl Config {
     }
 
     /// 対話的に設定を初期化
-    pub fn interactive_init(cli_library_name: Option<String>, cli_library_path: Option<PathBuf>) -> Self {
+    pub fn interactive_init(cli_src: Option<String>, cli_library_name: Option<String>, cli_library_path: Option<PathBuf>) -> Self {
+        eprint!("Enter source file name (default: main.rs): ");
+        io::stderr().flush().unwrap();
+        
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Failed to read line");
+        let src_input = input.trim().to_string();
+        let src = if src_input.is_empty() {
+            cli_src.or_else(|| Some("main.rs".to_string()))
+        } else {
+            Some(src_input)
+        };
+
         eprint!("Enter file directory (source file location): ");
         io::stderr().flush().unwrap();
         
@@ -75,6 +88,7 @@ impl Config {
         }
 
         Config {
+            src,
             file_dir: Some(file_dir_input),
             library_name: cli_library_name,
             library_path: cli_library_path.as_ref().map(|p| p.display().to_string()),
@@ -83,11 +97,13 @@ impl Config {
 
     /// CLI引数から設定を作成
     pub fn from_cli_args(
+        src: Option<String>,
         file_dir: Option<&PathBuf>,
         library_name: Option<String>,
         library_path: Option<&PathBuf>,
     ) -> Self {
         Config {
+            src,
             file_dir: file_dir.map(|p| p.display().to_string()),
             library_name,
             library_path: library_path.map(|p| p.display().to_string()),
@@ -103,6 +119,7 @@ impl Config {
         cli_library_path: Option<PathBuf>,
     ) -> Result<RuntimeConfig, String> {
         let src = cli_src
+            .or_else(|| self.src.clone())
             .or_else(|| Some("main.rs".to_string()))
             .unwrap();
 
@@ -137,7 +154,7 @@ impl Config {
 
         // 設定ファイルが存在せず、CLI引数もない場合は対話的に初期化
         if !config_exists && cli_file_dir.is_none() && config.file_dir.is_none() {
-            config = Self::interactive_init(cli_library_name.clone(), cli_library_path.clone());
+            config = Self::interactive_init(cli_src.clone(), cli_library_name.clone(), cli_library_path.clone());
             
             if let Err(e) = config.save() {
                 eprintln!("Warning: Could not save config file: {}", e);
@@ -146,8 +163,9 @@ impl Config {
             }
         }
         // CLI引数で設定が指定された場合も保存（初回のみ）
-        else if !config_exists && (cli_file_dir.is_some() || cli_library_name.is_some() || cli_library_path.is_some()) {
+        else if !config_exists && (cli_src.is_some() || cli_file_dir.is_some() || cli_library_name.is_some() || cli_library_path.is_some()) {
             let new_config = Self::from_cli_args(
+                cli_src.clone(),
                 cli_file_dir.as_ref(),
                 cli_library_name.clone(),
                 cli_library_path.as_ref(),
