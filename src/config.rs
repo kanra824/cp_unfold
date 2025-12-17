@@ -66,9 +66,9 @@ impl Config {
         eprint!("Enter source file name (default: main.rs): ");
         io::stderr().flush().unwrap();
         
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read line");
-        let src_input = input.trim().to_string();
+        let mut src_input_buffer = String::new();
+        io::stdin().read_line(&mut src_input_buffer).expect("Failed to read line");
+        let src_input = src_input_buffer.trim().to_string();
         let src = if src_input.is_empty() {
             cli_src.or_else(|| Some("main.rs".to_string()))
         } else {
@@ -78,9 +78,9 @@ impl Config {
         eprint!("Enter file directory (source file location): ");
         io::stderr().flush().unwrap();
         
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read line");
-        let file_dir_input = input.trim().to_string();
+        let mut file_dir_input_buffer = String::new();
+        io::stdin().read_line(&mut file_dir_input_buffer).expect("Failed to read line");
+        let file_dir_input = file_dir_input_buffer.trim().to_string();
 
         if file_dir_input.is_empty() {
             eprintln!("Error: file_dir cannot be empty");
