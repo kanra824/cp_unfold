@@ -5,6 +5,7 @@ use unfold::Unfold;
 use config::Config;
 use clap::Parser;
 use std::path::PathBuf;
+use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "cp_unfold")]
@@ -27,22 +28,16 @@ struct Args {
     library_path: Option<PathBuf>,
 }
 
-fn main() {
+fn run() -> Result<()> {
     let args = Args::parse();
 
     // 設定を初期化して実行時設定を取得
-    let runtime_config = match Config::initialize_and_merge(
+    let runtime_config = Config::initialize_and_merge(
         args.src,
         args.library_name,
         args.file_dir,
         args.library_path,
-    ) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(1);
-        }
-    };
+    )?;
 
     // Unfoldを実行
     let mut unfold = Unfold::from_args(
@@ -52,11 +47,14 @@ fn main() {
         runtime_config.library_path,
     );
 
-    match unfold.unfold() {
-        Ok(output) => println!("{}", output),
-        Err(e) => {
-            eprintln!("{:?}", e);
-            std::process::exit(1);
-        }
+    let output = unfold.unfold()?;
+    println!("{}", output);
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {:?}", e);
+        std::process::exit(1);
     }
 }

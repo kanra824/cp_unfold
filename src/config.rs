@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::io::{self, Write};
+use anyhow::{Result, Context};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Config {
@@ -47,16 +48,19 @@ impl Config {
         toml::from_str(&content).unwrap_or_default()
     }
 
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&self) -> Result<()> {
         let config_path = Self::config_path()
-            .ok_or("Could not determine config directory")?;
+            .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
         if let Some(parent) = config_path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
         }
 
-        let content = toml::to_string_pretty(self)?;
-        fs::write(&config_path, content)?;
+        let content = toml::to_string_pretty(self)
+            .context("Failed to serialize config to TOML")?;
+        fs::write(&config_path, content)
+            .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
 
         Ok(())
     }
@@ -117,7 +121,7 @@ impl Config {
         cli_library_name: Option<String>,
         cli_file_dir: Option<PathBuf>,
         cli_library_path: Option<PathBuf>,
-    ) -> Result<RuntimeConfig, String> {
+    ) -> Result<RuntimeConfig> {
         let src = cli_src
             .or_else(|| self.src.clone())
             .or_else(|| Some("main.rs".to_string()))
@@ -129,7 +133,7 @@ impl Config {
 
         let file_dir = cli_file_dir
             .or_else(|| self.file_dir.as_ref().map(PathBuf::from))
-            .ok_or("Error: --file-dir is required (or set in config file at ~/.config/cp_unfold/config.toml)")?;
+            .ok_or_else(|| anyhow::anyhow!("Error: --file-dir is required (or set in config file at ~/.config/cp_unfold/config.toml)"))?;
 
         let library_path = cli_library_path
             .or_else(|| self.library_path.as_ref().map(PathBuf::from));
@@ -148,7 +152,7 @@ impl Config {
         cli_library_name: Option<String>,
         cli_file_dir: Option<PathBuf>,
         cli_library_path: Option<PathBuf>,
-    ) -> Result<RuntimeConfig, String> {
+    ) -> Result<RuntimeConfig> {
         let mut config = Self::load();
         let config_exists = Self::exists();
 

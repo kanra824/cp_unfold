@@ -1,6 +1,7 @@
 use std::fs::read_to_string;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use anyhow::{Result, Context};
 
 pub struct Unfold {
     // src_name: String, // e.g. "main.rs"
@@ -39,7 +40,7 @@ impl Unfold {
         }
     }
 
-    fn unfold_super(&mut self, file_path: &Path, import_path_v: &[String], res: &mut String) -> Result<(), std::io::Error> {
+    fn unfold_super(&mut self, file_path: &Path, import_path_v: &[String], res: &mut String) -> Result<()> {
 
         // 相対インポート (use super::graph::* など)
         // 現在のファイルの親ディレクトリを基準に解決
@@ -88,7 +89,7 @@ impl Unfold {
         }
     }
 
-    fn unfold_library(&mut self, import_path_v: &[String], res: &mut String) -> Result<(), std::io::Error> {
+    fn unfold_library(&mut self, import_path_v: &[String], res: &mut String) -> Result<()> {
         // library::より下から見る
         // {library_path}/hoge/fuga.rs をトップレベルとして指定して、unfold する (used_lib は共通)
         let ofs = if import_path_v[0] == "crate" {
@@ -118,8 +119,9 @@ impl Unfold {
         Ok(())
     }
 
-    fn unfold_rec(&mut self, file_path: &Path) -> Result<(String, String), std::io::Error> {
-        let content = read_to_string(file_path.to_str().unwrap())?;
+    fn unfold_rec(&mut self, file_path: &Path) -> Result<(String, String)> {
+        let content = read_to_string(file_path.to_str().unwrap())
+            .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
         let mut res = String::new();
         let mut res_inner_directive = String::new();
         for line in content.lines() {
@@ -184,7 +186,7 @@ impl Unfold {
         Ok((res, res_inner_directive))
     }
 
-    fn unfold_use(&mut self) -> Result<String, std::io::Error> {
+    fn unfold_use(&mut self) -> Result<String> {
         let mut res_use = String::new();
         // used_lib の中身が used_lib_star とマッチしないかどうかチェック
         for import_path in &self.used_lib_star {
@@ -219,7 +221,7 @@ impl Unfold {
         Ok(res_use)
     }
 
-    pub fn unfold(&mut self) -> Result<String, std::io::Error> {
+    pub fn unfold(&mut self) -> Result<String> {
         let (res, res_inner_directive) = self.unfold_rec(&self.file_path.clone())?;
         let res_use = self.unfold_use()?;
         Ok(res_inner_directive + &res_use + &res)
