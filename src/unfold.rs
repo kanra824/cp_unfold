@@ -44,7 +44,7 @@ impl Unfold {
 
         // 相対インポート (use super::graph::* など)
         // 現在のファイルの親ディレクトリを基準に解決
-        let mut path = file_path.parent().unwrap().to_path_buf();
+        let mut path = file_path.to_path_buf();
         
         let mut super_count = 0;
         for part in import_path_v {
@@ -55,7 +55,6 @@ impl Unfold {
             }
         }
         
-        // super の数だけ親に上がる
         for _ in 0..super_count {
             path = path.parent().unwrap().to_path_buf();
         }
