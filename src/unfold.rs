@@ -123,7 +123,26 @@ impl Unfold {
             .with_context(|| format!("Failed to read file: {}", file_path.display()))?;
         let mut res = String::new();
         let mut res_inner_directive = String::new();
+
+        // 複数行 use 文のバッファ
+        let mut use_buffer = String::new();
+        let mut in_multiline_use = false;
+
         for line in content.lines() {
+            // 複数行 use 文の処理中
+            if in_multiline_use {
+                use_buffer.push(' ');
+                use_buffer.push_str(line.trim());
+
+                // セミコロンが見つかったら処理
+                if line.contains(';') {
+                    in_multiline_use = false;
+                    self.process_use_statement(&use_buffer, file_path, &mut res)?;
+                    use_buffer.clear();
+                }
+                continue;
+            }
+
             let str_v: Vec<&str> = line.split_whitespace().collect();
 
             // 空行
@@ -136,7 +155,7 @@ impl Unfold {
             // CP_UNFOLD_LIBRARY_PATH にライブラリのディレクトリは指定されているものとする
             if str_v[0] == "mod" || (str_v.len() >= 2 && str_v[0] == "pub" && str_v[1] == "mod") {
                 continue;
-            } 
+            }
 
             // #!
             // inner_directive
@@ -147,42 +166,65 @@ impl Unfold {
                 continue;
             }
 
+            // use または pub use の判定
+            let is_use = str_v[0] == "use" || (str_v.len() >= 2 && str_v[0] == "pub" && str_v[1] == "use");
 
-            // 二文字目で全部読み込まれるものとする (use aaa as A は未対応)
-            let ofs = if str_v[0] == "use" {
-                0
-            } else if str_v.len() >= 2 && str_v[0] == "pub" && str_v[1] == "use" {
-                1
+            if is_use {
+                // セミコロンが含まれていない場合は複数行 use 文の開始
+                if !line.contains(';') {
+                    in_multiline_use = true;
+                    use_buffer = line.to_string();
+                    continue;
+                }
+
+                // 単一行の use 文を処理
+                self.process_use_statement(line, file_path, &mut res)?;
             } else {
                 res += line;
                 res += "\n";
-                continue;
-            };
-
-            // use もしくは pub use から 後ろを全部繋げる
-            let mut import_path =
-                str_v.
-                    iter().
-                    enumerate().
-                    filter(|(idx, _)| *idx > ofs).
-                    fold(String::new(), |str, (_, val)| str + *val);
-            import_path.pop(); // セミコロンを取る
-            let import_path_v = split_by_coloncolon(import_path); // コロンで分割
-            let res_import_v = unfold_curly_bracket(&import_path_v); // 波括弧を展開
-
-            for import_path_v in res_import_v { // 展開された各パスについて処理
-                let import_path = import_path_v.join("::");
-                if import_path_v[0] == "super" { // 相対インポート
-                    self.unfold_super(file_path, &import_path_v, &mut res)?;
-                } else if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" { // 他クレートからのインポート
-                    self.unfold_other_crate(import_path, &import_path_v);
-                } else { // library からのインポート
-                    self.unfold_library(&import_path_v, &mut res)?;
-                }
             }
-
         }
+
         Ok((res, res_inner_directive))
+    }
+
+    // use 文を処理する補助関数
+    fn process_use_statement(&mut self, line: &str, file_path: &Path, res: &mut String) -> Result<()> {
+        // 空白を保持したまま use または pub use 以降の部分を抽出
+        let trimmed = line.trim();
+
+        let import_start = if trimmed.starts_with("pub use ") {
+            "pub use ".len()
+        } else if trimmed.starts_with("use ") {
+            "use ".len()
+        } else {
+            return Ok(());
+        };
+
+        // use 以降の部分を取得し、セミコロンを除去
+        let mut import_path = trimmed[import_start..].trim().to_string();
+        if import_path.ends_with(';') {
+            import_path.pop();
+        }
+
+        // 空白を除去（中括弧の中も含めて）
+        import_path = import_path.chars().filter(|&c| !c.is_whitespace()).collect();
+
+        let import_path_v = split_by_coloncolon(import_path); // コロンで分割
+        let res_import_v = unfold_curly_bracket(&import_path_v); // 波括弧を展開
+
+        for import_path_v in res_import_v { // 展開された各パスについて処理
+            let import_path = import_path_v.join("::");
+            if import_path_v[0] == "super" { // 相対インポート
+                self.unfold_super(file_path, &import_path_v, res)?;
+            } else if import_path_v[0] != self.library_import_name && import_path_v[0] != "crate" { // 他クレートからのインポート
+                self.unfold_other_crate(import_path, &import_path_v);
+            } else { // library からのインポート
+                self.unfold_library(&import_path_v, res)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn unfold_use(&mut self) -> Result<String> {
@@ -265,8 +307,16 @@ fn unfold_curly_bracket_rec(now: &mut Vec<String>, idx: usize, import_path_v: &[
         // 終端のはずで、str を import_path_v の形に展開したうえで、now をそのまま渡して再帰を始めればいい
         let mut child_v: Vec<String> = vec![];
         let mut tmp_v = vec![];
+        let mut depth = 0; // 中括弧の深さを追跡
         for i in 1..str.len()-1 {
-            if str[i] == ',' {
+            if str[i] == '{' {
+                depth += 1;
+                tmp_v.push(str[i]);
+            } else if str[i] == '}' {
+                depth -= 1;
+                tmp_v.push(str[i]);
+            } else if str[i] == ',' && depth == 0 {
+                // 深さ0のカンマのみで分割
                 child_v.push(tmp_v.iter().collect());
                 tmp_v = vec![];
             } else {
@@ -291,4 +341,85 @@ fn unfold_curly_bracket(import_path_v: &[String]) -> Vec<Vec<String>> {
     unfold_curly_bracket_rec(&mut now, 0, import_path_v, &mut res);
 
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_by_coloncolon_simple() {
+        let result = split_by_coloncolon("std::io::Read".to_string());
+        assert_eq!(result, vec!["std", "io", "Read"]);
+    }
+
+    #[test]
+    fn test_split_by_coloncolon_with_curly_bracket() {
+        let result = split_by_coloncolon("std::{io,fs}".to_string());
+        assert_eq!(result, vec!["std", "{io,fs}"]);
+    }
+
+    #[test]
+    fn test_split_by_coloncolon_nested_curly_bracket() {
+        let result = split_by_coloncolon("std::{io::{self,Read},fs::File}".to_string());
+        assert_eq!(result, vec!["std", "{io::{self,Read},fs::File}"]);
+    }
+
+    #[test]
+    fn test_unfold_curly_bracket_simple() {
+        let input = vec!["std".to_string(), "{io,fs}".to_string()];
+        let result = unfold_curly_bracket(&input);
+        assert_eq!(result, vec![
+            vec!["std", "io"],
+            vec!["std", "fs"],
+        ]);
+    }
+
+    #[test]
+    fn test_unfold_curly_bracket_nested() {
+        let input = vec!["std".to_string(), "{io::{self,Read},fs::File}".to_string()];
+        let result = unfold_curly_bracket(&input);
+        assert_eq!(result, vec![
+            vec!["std", "io", "self"],
+            vec!["std", "io", "Read"],
+            vec!["std", "fs", "File"],
+        ]);
+    }
+
+    #[test]
+    fn test_unfold_curly_bracket_double_nested() {
+        let input = vec!["std".to_string(), "{io::{self,Read,Write},fs::File}".to_string()];
+        let result = unfold_curly_bracket(&input);
+        assert_eq!(result, vec![
+            vec!["std", "io", "self"],
+            vec!["std", "io", "Read"],
+            vec!["std", "io", "Write"],
+            vec!["std", "fs", "File"],
+        ]);
+    }
+
+    #[test]
+    fn test_unfold_curly_bracket_wildcard() {
+        let input = vec!["std".to_string(), "io".to_string(), "*".to_string()];
+        let result = unfold_curly_bracket(&input);
+        assert_eq!(result, vec![
+            vec!["std", "io", "*"],
+        ]);
+    }
+
+    #[test]
+    fn test_unfold_curly_bracket_complex() {
+        // use std::{io::{self, Read}, fs::File, collections::HashMap}
+        let input = vec![
+            "std".to_string(),
+            "{io::{self,Read},fs::File,collections::HashMap}".to_string()
+        ];
+        let result = unfold_curly_bracket(&input);
+        assert_eq!(result, vec![
+            vec!["std", "io", "self"],
+            vec!["std", "io", "Read"],
+            vec!["std", "fs", "File"],
+            vec!["std", "collections", "HashMap"],
+        ]);
+    }
 }

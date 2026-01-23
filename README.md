@@ -84,13 +84,77 @@ cp_unfold > submission.rs
 - `use library::{module1, module2}`
 - `use super::sibling_module::*` (相対インポート)
 - `use std::{io::{self, Read}, fs::File}` (ネストされた中括弧)
-
-## サポートしていない構文
-- ライブラリインポートでの `use ... as` エイリアスには非対応
-- 複数行にわたるケース
-```
+- 複数行にわたる use 文
+```rust
 use std::{
     io::{self, Read},
     fs::File
 };
 ```
+
+## サポートしていない構文
+- ライブラリインポートでの `use ... as` エイリアスには非対応
+
+## プロジェクト構造
+
+このプロジェクトはライブラリとバイナリのハイブリッドクレートです。
+
+```
+src/
+├── lib.rs      # ライブラリのルート（公開API）
+├── main.rs     # バイナリのエントリーポイント
+├── config.rs   # 設定管理
+└── unfold.rs   # コア展開ロジック + ユニットテスト
+
+tests/
+└── integration_test.rs  # 統合テスト
+```
+
+ライブラリとしても使用可能：
+```rust
+use cp_unfold::{Unfold, Config};
+
+let mut unfold = Unfold::from_args(
+    "main.rs".to_string(),
+    "library".to_string(),
+    src_dir,
+    None,
+);
+let result = unfold.unfold()?;
+```
+
+## テスト
+
+### すべてのテストを実行
+
+```bash
+cargo test
+```
+
+### ユニットテストのみ実行
+
+```bash
+cargo test --lib
+```
+
+### 統合テストのみ実行
+
+```bash
+cargo test --test integration_test
+```
+
+### テストカバレッジ
+
+- **ユニットテスト（8個）**: `split_by_coloncolon` と `unfold_curly_bracket` の各種パターン
+  - 単純な `::` 分割
+  - 中括弧を含む分割
+  - ネストした中括弧の展開
+  - 複雑な use 文の展開
+
+- **統合テスト（6個）**: 実際のファイルを使った end-to-end テスト
+  - 単純なライブラリインポート
+  - 複数行 use 文
+  - ネストした中括弧
+  - ワイルドカードインポート (`*`)
+  - 相対インポート (`super::`)
+  - ライブラリAPIの直接使用
