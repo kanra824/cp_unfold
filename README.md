@@ -104,10 +104,11 @@ src/
 ├── lib.rs      # ライブラリのルート（公開API）
 ├── main.rs     # バイナリのエントリーポイント
 ├── config.rs   # 設定管理
-└── unfold.rs   # コア展開ロジック + ユニットテスト
+└── unfold.rs   # コア展開ロジック
 
 tests/
-└── integration_test.rs  # 統合テスト
+├── unit_test.rs         # ユニットテスト（8個）
+└── integration_test.rs  # 統合テスト（6個）
 ```
 
 ライブラリとしても使用可能：
