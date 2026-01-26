@@ -1,8 +1,4 @@
-mod unfold;
-mod config;
-
-use unfold::Unfold;
-use config::Config;
+use cp_unfold::{Config, Unfold};
 use clap::Parser;
 use std::path::PathBuf;
 use anyhow::Result;
